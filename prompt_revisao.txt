@@ -1,0 +1,85 @@
+Revise e corrija o arquivo index.html deste repositório. Este é um sistema web de Controle de Histograma de Obra para a obra Corá Arthaus (Penha/SC), da incorporadora ArtHaus. App single-page em HTML/JS puro integrado ao Supabase, hospedado no Vercel via GitHub.
+
+INFRAESTRUTURA:
+- Supabase URL: https://punbnqvggogteoleicyf.supabase.co
+- Supabase Key (anon JWT): eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB1bmJucXZnZ29ndGVvbGVpY3lmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYyMjk2MzMsImV4cCI6MjA5MTgwNTYzM30.vau-IUCVHKGHiPK4qI2g7bh9y82C4qm7Jirn4SnyFfA
+- GitHub: leandroengcivil2-cpu/cora-arthaus
+- Deploy: Vercel (auto-deploy ao commit no GitHub)
+
+TABELAS SUPABASE:
+- empreiteiros: id TEXT PK, nome TEXT, especialidade TEXT, cnpj TEXT
+- colaboradores: id TEXT PK, nome TEXT, empreiteiro_id TEXT, funcao TEXT, cpf TEXT
+- chamadas: id TEXT PK, data DATE, colaborador_id TEXT, status TEXT (P/F/M), motivo TEXT
+- previsto: id TEXT PK, mes TEXT (YYYY-MM), empreiteiro_id TEXT, quantidade INTEGER
+- funcoes: id TEXT PK, nome TEXT
+- diarias: id TEXT PK, data DATE, colaborador_id TEXT, descricao TEXT
+- Constraints: UNIQUE(data, colaborador_id) em chamadas e diarias
+
+FUNCIONALIDADES DO APP:
+1. Home: Dashboard com efetivo hoje, colaboradores, empreiteiros, imagem do prédio Corá à direita
+2. Chamada: Marcação diária P/F/M com campo de motivo quando F ou M
+3. Painel BI: Gráfico previsto x realizado por empreiteiro (barras verticais lado a lado), tabela diária, gráficos de efetivo por função (barras verticais com nome da função dentro), exportação PDF mensal e diária
+4. Diárias: Seletor para adicionar colaborador no dia, campo de descrição do serviço, exportação PDF medição mensal
+5. Cadastros: Empreiteiros (CNPJ obrigatório), Colaboradores (CPF obrigatório), Funções, Previsto mensal
+
+REGRAS DE NEGÓCIO OBRIGATÓRIAS:
+- Todos os campos de texto forçam CAIXA ALTA
+- CNPJ obrigatório e único (14 dígitos com máscara)
+- CPF obrigatório e único (11 dígitos com máscara)
+- Selects NÃO devem aplicar toUpperCase (corrompe IDs)
+- Queries de data devem usar último dia real do mês (NUNCA dia 31 fixo)
+- Todo POST ao Supabase deve gerar campo id
+- Filtro de empreiteiro no BI deve ser respeitado nos PDFs
+- Nenhum uso do termo HD ou homem-dia em nenhum lugar
+- PDFs com assinatura engenheiro + empreiteiro
+- Campo motivo aparece quando status é F ou M na chamada
+- Interface em português do Brasil, sem emojis, sem inglês
+
+PALETA E DESIGN:
+- Fundo: #0a0a0a
+- Dourado ArtHaus: #c9a96e
+- Verde semântico: #22c55e / #4ade80
+- Vermelho semântico: #ef4444 / #f87171
+- Amarelo: #fbbf24
+- Fontes: DM Sans + Playfair Display
+- Mobile-first
+
+CHECKLIST DE REVISÃO - VERIFICAR E CORRIGIR:
+
+1. BUGS CONHECIDOS:
+   - Query de chamadas/diárias NÃO pode usar dia 31 fixo (meses com 28/29/30 dias dão erro 400 no PostgreSQL)
+   - Select de empreiteiro no cadastro de colaborador: oninput com toUpperCase corrompe o value do select
+   - POST sem campo id falha silenciosamente no Supabase
+   - Previsto não persistia por falta de id no POST
+
+2. CRUD COMPLETO:
+   - Testar todas operações de criar, ler, atualizar e deletar
+   - Verificar que upsert de chamadas inclui campo motivo
+   - Verificar que previsto salva e persiste ao recarregar
+   - Verificar que ao mudar mês os dados corretos são carregados
+
+3. GRÁFICOS:
+   - Previsto x realizado por empreiteiro: barras verticais lado a lado com resumo total no topo (previsto, realizado, desvio)
+   - Efetivo por função: barras verticais com nome COMPLETO da função dentro (sem abreviação), valor abaixo
+   - Verde quando atingiu meta, vermelho abaixo
+   - Cores distintas por função
+
+4. PDFs (3 tipos):
+   - ATA Mensal: resumo por empreiteiro + detalhamento diário + ocorrências com motivo + assinaturas
+   - Efetivo Diário: tabela com nome/função/CPF/status/motivo + resumo por função + assinaturas
+   - Medição Diárias: por empreiteiro com datas/serviço/totais + assinaturas
+   - TODOS respeitam filtro de empreiteiro
+
+5. PERFORMANCE:
+   - Não chamar render() após salvar previsto (perde foco do input)
+   - Não fazer chamadas API desnecessárias
+   - Eventos não duplicados
+
+6. LAYOUT:
+   - Home: prédio 55% largura à direita, sem logo distorcida
+   - Bottom nav: 5 itens (Início, Chamada, BI, Diárias, Cadastros)
+   - Responsivo mobile ~380px
+   - Sem overflow horizontal
+
+RESULTADO ESPERADO:
+Gere o index.html corrigido com todos os bugs resolvidos. Liste os bugs encontrados e as correções aplicadas. Se precisar de SQL adicional para o Supabase, gere separado.
