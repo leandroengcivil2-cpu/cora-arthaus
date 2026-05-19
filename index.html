@@ -565,6 +565,7 @@ function rCadPrev(){
 // PDF EXPORT
 // ============================================================
 function exportPdf(){
+  console.log('[EXPORT] biEmpSel:',JSON.stringify(S.biEmpSel),'fEmp():',fEmp().map(e=>e.nome));
   const{jsPDF}=window.jspdf;const doc=new jsPDF();
   const[y,m]=S.selectedMonth.split('-').map(Number);const days=dim(S.selectedMonth);
   const mn=['','JAN','FEV','MAR','ABR','MAI','JUN','JUL','AGO','SET','OUT','NOV','DEZ'][m];
@@ -722,7 +723,7 @@ function bindEvents(){
   document.querySelectorAll('[data-action="setDate"]').forEach(el=>{el.onchange=async()=>{S.selectedDate=el.value;const nm=el.value.slice(0,7);if(nm!==S.selectedMonth){S.selectedMonth=nm;await loadMonth()}render()}});
   document.querySelectorAll('[data-action="setMonth"]').forEach(el=>{el.onchange=async()=>{S.selectedMonth=el.value;await loadMonth();render()}});
   document.querySelectorAll('[data-action="setEmp"]').forEach(el=>{el.onchange=()=>{S.selEmp=el.value;render()}});
-  document.querySelectorAll('[data-emp-toggle]').forEach(el=>{el.onclick=()=>{const v=el.dataset.empToggle;if(v==='all'){S.biEmpSel=[];}else{const i=S.biEmpSel.indexOf(v);if(i>=0)S.biEmpSel.splice(i,1);else S.biEmpSel.push(v);}render()}});
+  document.querySelectorAll('[data-emp-toggle]').forEach(el=>{el.onclick=()=>{const v=el.dataset.empToggle;if(v==='all'){S.biEmpSel=[];}else{const i=S.biEmpSel.indexOf(v);if(i>=0)S.biEmpSel.splice(i,1);else S.biEmpSel.push(v);}console.log('[FILTRO] biEmpSel após clique:',JSON.stringify(S.biEmpSel));render()}});
 
   // Chamada — adicionar colaborador ao dia (opt-in)
   document.querySelectorAll('[data-action="addToDay"]').forEach(el=>{el.onclick=async()=>{
