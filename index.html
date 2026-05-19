@@ -137,11 +137,9 @@ const api={
   delChamada(data,cid){return this.req(`chamadas?data=eq.${data}&colaborador_id=eq.${cid}`,'DELETE')},
   getPrevisto(mes){return this.req('previsto?mes=eq.'+mes)},
   async upsertPrevisto(p){
-    const body={id:'prev'+Date.now()+String(p.empreiteiro_id).slice(-6),...p};
-    const h={'apikey':SUPA_KEY,'Authorization':'Bearer '+SUPA_KEY,'Content-Type':'application/json','Prefer':'resolution=merge-duplicates,return=representation'};
-    const r=await fetch(SUPA_URL+'/rest/v1/previsto',{method:'POST',headers:h,body:JSON.stringify(body)});
-    if(!r.ok){const t=await r.text();console.error('PREVISTO ERROR',r.status,t);throw new Error(r.status+': '+t)}
-    const t=await r.text();return t?JSON.parse(t):null;
+    const ex=await this.req(`previsto?mes=eq.${p.mes}&empreiteiro_id=eq.${p.empreiteiro_id}`);
+    if(ex?.length)return this.req(`previsto?mes=eq.${p.mes}&empreiteiro_id=eq.${p.empreiteiro_id}`,'PATCH',{quantidade:p.quantidade});
+    return this.req('previsto','POST',{mes:p.mes,empreiteiro_id:p.empreiteiro_id,quantidade:p.quantidade});
   },
   getFuncoes(){return this.req('funcoes?order=nome')},
   addFuncao(nome){return this.req('funcoes','POST',{id:'func'+Date.now(),nome})},
