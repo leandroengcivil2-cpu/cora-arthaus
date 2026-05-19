@@ -132,7 +132,7 @@ const api={
     const ex=await this.req(`chamadas?data=eq.${c.data}&colaborador_id=eq.${c.colaborador_id}`);
     const patch={status:c.status};if(c.motivo!==undefined)patch.motivo=c.motivo;
     if(ex?.length)return this.req(`chamadas?data=eq.${c.data}&colaborador_id=eq.${c.colaborador_id}`,'PATCH',patch);
-    return this.req('chamadas','POST',{...c,motivo:c.motivo||''});
+    return this.req('chamadas','POST',{id:'ch'+Date.now()+c.colaborador_id.slice(-4),...c,motivo:c.motivo||''});
   },
   delChamada(data,cid){return this.req(`chamadas?data=eq.${data}&colaborador_id=eq.${cid}`,'DELETE')},
   getPrevisto(mes){return this.req('previsto?mes=eq.'+mes)},
@@ -142,7 +142,7 @@ const api={
     return this.req('previsto','POST',{id:'prev'+Date.now()+p.empreiteiro_id,...p});
   },
   getFuncoes(){return this.req('funcoes?order=nome')},
-  addFuncao(nome){return this.req('funcoes','POST',{nome})},
+  addFuncao(nome){return this.req('funcoes','POST',{id:'func'+Date.now(),nome})},
   delFuncao(id){return this.req('funcoes?id=eq.'+id,'DELETE')},
   getDiarias(mes){const ld=new Date(parseInt(mes.split('-')[0]),parseInt(mes.split('-')[1]),0).getDate();return this.req(`diarias?data=gte.${mes}-01&data=lte.${mes}-${String(ld).padStart(2,'0')}&order=data`)},
   async upsertDiaria(d){
@@ -225,10 +225,26 @@ function rHome(){
 // CHAMADA
 // ============================================================
 function rChamada(){
-  let cols=[...S.colaboradores];if(S.selEmp!=='all')cols=cols.filter(c=>c.empreiteiro_id===S.selEmp);cols.sort((a,b)=>a.nome.localeCompare(b.nome));
-  let P=0,F=0,M=0;cols.forEach(c=>{const s=chStatus(c.id,S.selectedDate);if(s==='P')P++;else if(s==='F')F++;else if(s==='M')M++});
-  const pend=cols.length-P-F-M;
-  let list=cols.length?cols.map(c=>{const s=chStatus(c.id,S.selectedDate)||'',mot=chMotivo(c.id,S.selectedDate),emp=S.empreiteiros.find(e=>e.id===c.empreiteiro_id);
+  const d=S.selectedDate;
+  // Colaboradores já adicionados no dia (registros em chamadas para esta data)
+  const todayChs=S.chamadas.filter(c=>c.data===d);
+  const addedIds=todayChs.map(c=>c.colaborador_id);
+
+  // Colaboradores disponíveis para adicionar (não adicionados ainda, respeitando filtro de empreiteiro)
+  let dispCols=[...S.colaboradores];
+  if(S.selEmp!=='all')dispCols=dispCols.filter(c=>c.empreiteiro_id===S.selEmp);
+  const availCols=dispCols.filter(c=>!addedIds.includes(c.id)).sort((a,b)=>a.nome.localeCompare(b.nome));
+
+  // Colaboradores adicionados no dia (respeitando filtro de empreiteiro)
+  let addedCols=S.colaboradores.filter(c=>addedIds.includes(c.id));
+  if(S.selEmp!=='all')addedCols=addedCols.filter(c=>c.empreiteiro_id===S.selEmp);
+  addedCols.sort((a,b)=>a.nome.localeCompare(b.nome));
+
+  let P=0,F=0,M=0;
+  addedCols.forEach(c=>{const s=chStatus(c.id,d);if(s==='P')P++;else if(s==='F')F++;else if(s==='M')M++});
+
+  const list=addedCols.length?addedCols.map(c=>{
+    const s=chStatus(c.id,d)||'P',mot=chMotivo(c.id,d),emp=S.empreiteiros.find(e=>e.id===c.empreiteiro_id);
     const showMotivo=(s==='F'||s==='M');
     return`<div class="list-item" style="${showMotivo?'flex-direction:column;align-items:stretch;gap:6px':''}">
       <div style="display:flex;align-items:center;justify-content:space-between;width:100%">
@@ -237,16 +253,24 @@ function rChamada(){
           <button class="status-btn" style="background:${s==='P'?'var(--green)':'var(--bg4)'};color:${s==='P'?'#000':'var(--gray2)'}" data-ch="${c.id}" data-st="P">P</button>
           <button class="status-btn" style="background:${s==='M'?'var(--yellow)':'var(--bg4)'};color:${s==='M'?'#000':'var(--gray2)'}" data-ch="${c.id}" data-st="M">½</button>
           <button class="status-btn" style="background:${s==='F'?'var(--red)':'var(--bg4)'};color:${s==='F'?'#000':'var(--gray2)'}" data-ch="${c.id}" data-st="F">F</button>
+          <button class="del-btn" data-ch-rm="${c.id}" style="margin-left:4px;padding:4px 8px;font-size:14px;opacity:.6">✕</button>
         </div>
       </div>
       ${showMotivo?`<input type="text" data-motivo="${c.id}" placeholder="MOTIVO DA ${s==='F'?'FALTA':'½ PERÍODO'}..." value="${mot}" style="font-size:11px;padding:7px 10px;background:var(--bg4);border:1px solid var(--border2);border-radius:6px;color:var(--white);text-transform:uppercase">`:''}
-    </div>`}).join(''):'<div style="text-align:center;padding:40px;color:var(--gray2)">Nenhum colaborador cadastrado</div>';
+    </div>`;
+  }).join(''):'<div style="text-align:center;padding:30px 20px;color:var(--gray2);font-size:12px">NENHUM COLABORADOR ADICIONADO NESTE DIA<br><span style="font-size:10px;opacity:.6">Use o seletor acima para adicionar</span></div>';
+
   return`<div class="page fade-in">
-    <div style="display:flex;gap:8px;margin-bottom:12px">${ic('calendar',16,'#c9a96e')}<input type="date" value="${S.selectedDate}" data-action="setDate" style="flex:1"></div>
-    <select data-action="setEmp" style="margin-bottom:10px"><option value="all">TODOS OS EMPREITEIROS</option>${S.empreiteiros.map(e=>`<option value="${e.id}" ${S.selEmp===e.id?'selected':''}>${e.nome}</option>`).join('')}</select>
-    <div style="display:flex;gap:6px;margin-bottom:12px"><div class="mini-stat"><div style="font-size:18px;font-weight:700;color:var(--green)">${P}</div><div style="font-size:9px;color:var(--gray)">PRES.</div></div><div class="mini-stat"><div style="font-size:18px;font-weight:700;color:var(--red)">${F}</div><div style="font-size:9px;color:var(--gray)">FALTAS</div></div><div class="mini-stat"><div style="font-size:18px;font-weight:700;color:var(--yellow)">${M}</div><div style="font-size:9px;color:var(--gray)">½ PER.</div></div><div class="mini-stat"><div style="font-size:18px;font-weight:700;color:var(--gray2)">${pend}</div><div style="font-size:9px;color:var(--gray)">PEND.</div></div></div>
-    <div style="display:flex;gap:6px;margin-bottom:14px"><button class="sm-btn" style="border-color:var(--green);color:var(--green)" data-action="markAll" data-status="P">TODOS PRESENTES</button><button class="sm-btn" data-action="markAll" data-status="">LIMPAR</button></div>
-    ${list}</div>`}
+    <div style="display:flex;gap:8px;margin-bottom:12px">${ic('calendar',16,'#c9a96e')}<input type="date" value="${d}" data-action="setDate" style="flex:1"></div>
+    <select data-action="setEmp" style="margin-bottom:12px"><option value="all">TODOS OS EMPREITEIROS</option>${S.empreiteiros.map(e=>`<option value="${e.id}" ${S.selEmp===e.id?'selected':''}>${e.nome}</option>`).join('')}</select>
+    <div style="display:flex;gap:6px;margin-bottom:14px">
+      <select id="selAddCol" style="flex:1"><option value="">ADICIONAR COLABORADOR...</option>${availCols.map(c=>{const emp=S.empreiteiros.find(e=>e.id===c.empreiteiro_id);return`<option value="${c.id}">${c.nome}${emp?' — '+emp.nome:''}</option>`}).join('')}</select>
+      <button class="add-btn" data-action="addToDay" style="white-space:nowrap;padding:10px 14px">+ ADICIONAR</button>
+    </div>
+    ${addedCols.length?`<div style="display:flex;gap:6px;margin-bottom:12px"><div class="mini-stat"><div style="font-size:18px;font-weight:700;color:var(--green)">${P}</div><div style="font-size:9px;color:var(--gray)">PRES.</div></div><div class="mini-stat"><div style="font-size:18px;font-weight:700;color:var(--red)">${F}</div><div style="font-size:9px;color:var(--gray)">FALTAS</div></div><div class="mini-stat"><div style="font-size:18px;font-weight:700;color:var(--yellow)">${M}</div><div style="font-size:9px;color:var(--gray)">½ PER.</div></div><div class="mini-stat"><div style="font-size:18px;font-weight:700;color:var(--white)">${addedCols.length}</div><div style="font-size:9px;color:var(--gray)">TOTAL</div></div></div>
+    <div style="display:flex;gap:6px;margin-bottom:12px"><button class="sm-btn" style="border-color:var(--green);color:var(--green)" data-action="markAll" data-status="P">TODOS PRESENTES</button><button class="sm-btn" data-action="markAll" data-status="">REMOVER TODOS</button></div>`:''}
+    ${list}
+  </div>`}
 
 // ============================================================
 // PAINEL BI — gráficos melhorados
@@ -352,31 +376,49 @@ function rDaily(){
 
 function rMonthly(){
   const[y,m]=S.selectedMonth.split('-').map(Number);const days=dim(S.selectedMonth);
+  const today=dk(new Date());
   const fE=S.biEmpFilter==='all'?S.empreiteiros:S.empreiteiros.filter(e=>e.id===S.biEmpFilter);
-  let summary=fE.map(emp=>{
+
+  const summary=fE.map(emp=>{
     const cols=S.colaboradores.filter(c=>c.empreiteiro_id===emp.id);
-    let tP=0,tF=0,tM=0,dc=0;
-    for(let d=1;d<=days;d++){const dkk=`${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;const dch=S.chamadas.filter(c=>c.data===dkk);if(!dch.length)continue;dc++;cols.forEach(c=>{const ch=dch.find(x=>x.colaborador_id===c.id);if(ch?.status==='P')tP++;else if(ch?.status==='F')tF++;else if(ch?.status==='M')tM++})}
-    const ef=tP+tM*.5,pv=(S.previsto.find(p=>p.empreiteiro_id===emp.id)?.quantidade||0)*dc;
-    return{...emp,tP,tF,tM,ef,dc,pv,tot:tP+tF+tM}});
-  const tE=summary.reduce((a,s)=>a+s.ef,0),tPv=summary.reduce((a,s)=>a+s.pv,0),tP=summary.reduce((a,s)=>a+s.tP,0),tF=summary.reduce((a,s)=>a+s.tF,0),tR=summary.reduce((a,s)=>a+s.tot,0);
+    let sumEf=0,tP=0,tF=0,tM=0,dc=0;
+    for(let d=1;d<=days;d++){
+      const dkk=`${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+      if(dkk>today)break;
+      const dch=S.chamadas.filter(c=>c.data===dkk);
+      if(!dch.length)continue;
+      dc++;
+      cols.forEach(c=>{const ch=dch.find(x=>x.colaborador_id===c.id);if(ch?.status==='P'){sumEf+=1;tP++}else if(ch?.status==='F')tF++;else if(ch?.status==='M'){sumEf+=0.5;tM++}});
+    }
+    const ef=dc>0?Math.round((sumEf/dc)*10)/10:0;
+    const pv=S.previsto.find(p=>p.empreiteiro_id===emp.id)?.quantidade||0;
+    return{...emp,sumEf,tP,tF,tM,ef,dc,pv,tot:tP+tF+tM};
+  });
+
+  const tPv=fE.reduce((a,e)=>a+(S.previsto.find(p=>p.empreiteiro_id===e.id)?.quantidade||0),0);
+  const tEf=Math.round(summary.reduce((a,s)=>a+s.ef,0)*10)/10;
+  const tP=summary.reduce((a,s)=>a+s.tP,0),tF=summary.reduce((a,s)=>a+s.tF,0),tM=summary.reduce((a,s)=>a+s.tM,0),tR=summary.reduce((a,s)=>a+s.tot,0);
   const pct=tR>0?Math.round(tP/tR*100):0;
 
-  // Card-based monthly view
-  const cards=summary.filter(s=>s.tot>0||s.pv>0).map((s,i)=>{
-    const mx=Math.max(s.ef,s.pv,1),pctE=Math.round((s.ef/mx)*100),pctP=Math.round((s.pv/mx)*100);
-    const color=s.ef>=s.pv?'var(--green2)':'var(--red2)';
+  const cards=summary.filter(s=>s.tot>0||s.pv>0).map(s=>{
+    const pctE=s.pv>0?Math.min(Math.round((s.ef/s.pv)*100),100):s.ef>0?100:0;
+    const color=s.ef>=s.pv&&s.pv>0?'var(--green2)':'var(--red2)';
     const presPct=s.tot>0?Math.round(s.tP/s.tot*100):0;
+    const desvio=Math.round((s.ef-s.pv)*10)/10;
     return`<div class="monthly-card">
-      <div class="monthly-header"><span style="font-weight:700;color:var(--white);font-size:13px">${s.nome}</span><span style="font-size:20px;font-weight:700;color:${color};font-family:var(--font-display)">${s.ef}<span style="font-size:11px;color:var(--gray)"> / ${s.pv}</span></span></div>
-      <div class="monthly-bar-bg"><div class="monthly-bar-target" style="left:${pctP}%"></div><div class="monthly-bar-fill" style="width:${pctE}%;background:${color}">${s.ef>0?s.ef:''}</div></div>
+      <div class="monthly-header">
+        <div><span style="font-weight:700;color:var(--white);font-size:13px">${s.nome}</span><div style="font-size:9px;color:var(--gray);margin-top:2px">${s.dc} DIA${s.dc!==1?'S':''} COM CHAMADA</div></div>
+        <div style="text-align:right"><span style="font-size:20px;font-weight:700;color:${color};font-family:var(--font-display)">${s.ef}</span><span style="font-size:10px;color:var(--gray)"> / ${s.pv}/DIA</span><div style="font-size:10px;color:${desvio>=0?'var(--green)':'var(--red)'}">${desvio>=0?'+':''}${desvio}</div></div>
+      </div>
+      <div class="monthly-bar-bg"><div class="monthly-bar-fill" style="width:${pctE}%;background:${color}">${s.ef>0?s.ef:''}</div></div>
       <div class="monthly-stats"><span style="color:var(--green)">● ${s.tP} pres.</span><span style="color:var(--red)">● ${s.tF} faltas</span><span style="color:var(--yellow)">● ${s.tM} ½</span><span style="color:${presPct>=85?'var(--green)':'var(--red)'}">${presPct}%</span></div>
-    </div>`}).join('');
+    </div>`;
+  }).join('');
 
-  return`<div class="section-title">RESUMO MENSAL</div>
+  return`<div class="section-title">RESUMO MENSAL — MÉDIA DIÁRIA</div>
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:16px">
-      <div class="stat-card"><div class="stat-value" style="color:var(--gold);font-size:22px">${tE}</div><div class="stat-label">EFETIVO</div><div class="stat-sub"></div></div>
-      <div class="stat-card"><div class="stat-value" style="color:var(--gray2);font-size:22px">${tPv}</div><div class="stat-label">PREVISTO</div><div class="stat-sub"></div></div>
+      <div class="stat-card"><div class="stat-value" style="color:var(--gold);font-size:22px">${tEf}</div><div class="stat-label">EF. MÉDIO/DIA</div><div class="stat-sub">dias c/ chamada</div></div>
+      <div class="stat-card"><div class="stat-value" style="color:var(--gray2);font-size:22px">${tPv}</div><div class="stat-label">PREVISTO/DIA</div><div class="stat-sub">total diário</div></div>
       <div class="stat-card"><div class="stat-value" style="color:${pct>=85?'var(--green)':'var(--red)'};font-size:22px">${pct}%</div><div class="stat-label">PRESENÇA</div><div class="stat-sub">${tF} faltas</div></div>
     </div>
     ${cards||'<p style="text-align:center;color:var(--gray2)">SEM DADOS</p>'}`}
@@ -678,18 +720,58 @@ function bindEvents(){
   document.querySelectorAll('[data-action="setEmp"]').forEach(el=>{el.onchange=()=>{S.selEmp=el.value;render()}});
   document.querySelectorAll('[data-action="setBiEmp"]').forEach(el=>{el.onchange=()=>{S.biEmpFilter=el.value;render()}});
 
-  // Chamada
-  document.querySelectorAll('[data-ch]').forEach(el=>{el.onclick=async()=>{const cid=el.dataset.ch,st=el.dataset.st,d=S.selectedDate,cur=chStatus(cid,d);
-    if(cur===st){await api.delChamada(d,cid);S.chamadas=S.chamadas.filter(c=>!(c.data===d&&c.colaborador_id===cid))}
-    else{await api.upsertChamada({data:d,colaborador_id:cid,status:st,motivo:''});const idx=S.chamadas.findIndex(c=>c.data===d&&c.colaborador_id===cid);if(idx>=0){S.chamadas[idx].status=st;S.chamadas[idx].motivo=''}else S.chamadas.push({data:d,colaborador_id:cid,status:st,motivo:''})}render()}});
+  // Chamada — adicionar colaborador ao dia (opt-in)
+  document.querySelectorAll('[data-action="addToDay"]').forEach(el=>{el.onclick=async()=>{
+    const sel=document.getElementById('selAddCol');if(!sel||!sel.value){toast('SELECIONE UM COLABORADOR',true);return}
+    const cid=sel.value,d=S.selectedDate;
+    try{
+      await api.upsertChamada({data:d,colaborador_id:cid,status:'P',motivo:''});
+      const idx=S.chamadas.findIndex(c=>c.data===d&&c.colaborador_id===cid);
+      if(idx>=0){S.chamadas[idx].status='P';S.chamadas[idx].motivo=''}else S.chamadas.push({data:d,colaborador_id:cid,status:'P',motivo:''});
+      render();
+    }catch(e){toast('ERRO: '+e.message,true)}
+  }});
+
+  // Chamada — remover colaborador do dia
+  document.querySelectorAll('[data-ch-rm]').forEach(el=>{el.onclick=async()=>{
+    const cid=el.dataset.chRm,d=S.selectedDate;
+    try{await api.delChamada(d,cid);S.chamadas=S.chamadas.filter(x=>!(x.data===d&&x.colaborador_id===cid));render()}
+    catch(e){toast('ERRO: '+e.message,true)}
+  }});
+
+  // Chamada — alterar status P/½/F
+  document.querySelectorAll('[data-ch]').forEach(el=>{el.onclick=async()=>{
+    const cid=el.dataset.ch,st=el.dataset.st,d=S.selectedDate,cur=chStatus(cid,d);
+    try{
+      await api.upsertChamada({data:d,colaborador_id:cid,status:st,motivo:cur===st?chMotivo(cid,d):''});
+      const idx=S.chamadas.findIndex(c=>c.data===d&&c.colaborador_id===cid);
+      if(idx>=0){S.chamadas[idx].status=st;if(cur!==st)S.chamadas[idx].motivo=''}
+      else S.chamadas.push({data:d,colaborador_id:cid,status:st,motivo:''});
+      render();
+    }catch(e){toast('ERRO: '+e.message,true)}
+  }});
+
   // Motivo de falta/meio período
   document.querySelectorAll('[data-motivo]').forEach(el=>{el.onblur=async()=>{
     const cid=el.dataset.motivo,d=S.selectedDate,mot=el.value.toUpperCase();
     await api.upsertChamada({data:d,colaborador_id:cid,status:chStatus(cid,d),motivo:mot});
     const idx=S.chamadas.findIndex(x=>x.data===d&&x.colaborador_id===cid);if(idx>=0)S.chamadas[idx].motivo=mot;
   }});
-  document.querySelectorAll('[data-action="markAll"]').forEach(el=>{el.onclick=async()=>{const st=el.dataset.status,d=S.selectedDate;let cols=[...S.colaboradores];if(S.selEmp!=='all')cols=cols.filter(c=>c.empreiteiro_id===S.selEmp);
-    for(const c of cols){if(st){await api.upsertChamada({data:d,colaborador_id:c.id,status:st});const idx=S.chamadas.findIndex(x=>x.data===d&&x.colaborador_id===c.id);if(idx>=0)S.chamadas[idx].status=st;else S.chamadas.push({data:d,colaborador_id:c.id,status:st})}else{await api.delChamada(d,c.id);S.chamadas=S.chamadas.filter(x=>!(x.data===d&&x.colaborador_id===c.id))}}toast(st?'TODOS PRESENTES':'LIMPO')}});
+
+  // markAll — opera só sobre colaboradores já adicionados no dia
+  document.querySelectorAll('[data-action="markAll"]').forEach(el=>{el.onclick=async()=>{
+    const st=el.dataset.status,d=S.selectedDate;
+    const addedIds=S.chamadas.filter(x=>x.data===d).map(x=>x.colaborador_id);
+    let cols=S.colaboradores.filter(c=>addedIds.includes(c.id));
+    if(S.selEmp!=='all')cols=cols.filter(c=>c.empreiteiro_id===S.selEmp);
+    try{
+      for(const c of cols){
+        if(st){await api.upsertChamada({data:d,colaborador_id:c.id,status:st});const idx=S.chamadas.findIndex(x=>x.data===d&&x.colaborador_id===c.id);if(idx>=0)S.chamadas[idx].status=st;else S.chamadas.push({data:d,colaborador_id:c.id,status:st})}
+        else{await api.delChamada(d,c.id);S.chamadas=S.chamadas.filter(x=>!(x.data===d&&x.colaborador_id===c.id))}
+      }
+      toast(st?'TODOS PRESENTES':'REMOVIDOS');
+    }catch(e){toast('ERRO: '+e.message,true)}
+  }});
 
   // Fields — force uppercase (except selects)
   document.querySelectorAll('[data-field]').forEach(el=>{
@@ -723,23 +805,25 @@ function bindEvents(){
   document.querySelectorAll('[data-action="addFunc"]').forEach(el=>{el.onclick=async()=>{if(!S.fFuncNome?.trim())return;const n=S.fFuncNome.trim().toUpperCase();if(S.funcoes.find(f=>f.nome===n)){toast('JÁ EXISTE',true);return}try{await api.addFuncao(n);S.fFuncNome='';S.funcoes=await api.getFuncoes();toast('ADICIONADA')}catch(e){toast('ERRO',true)}}});
   document.querySelectorAll('[data-df]').forEach(el=>{el.onclick=async()=>{try{await api.delFuncao(el.dataset.df);S.funcoes=await api.getFuncoes();render()}catch(e){toast('ERRO',true)}}});
 
-  // Previsto
+  // Previsto — salva com debounce no oninput e também no blur
+  const _prevTimers={};
+  const _savePrev=async(el)=>{
+    const empId=el.dataset.pe,qty=parseInt(el.value)||0;
+    el.style.borderColor='var(--gold)';
+    try{
+      await api.upsertPrevisto({mes:S.selectedMonth,empreiteiro_id:empId,quantidade:qty});
+      const idx=S.previsto.findIndex(p=>p.empreiteiro_id===empId&&p.mes===S.selectedMonth);
+      if(idx>=0)S.previsto[idx].quantidade=qty;
+      else S.previsto.push({id:'prev'+Date.now()+empId,mes:S.selectedMonth,empreiteiro_id:empId,quantidade:qty});
+      if(el.isConnected)el.style.borderColor='var(--green)';
+      const totalEl=document.getElementById('prevTotal');
+      if(totalEl)totalEl.textContent=S.previsto.reduce((a,p)=>a+(p.quantidade||0),0);
+      setTimeout(()=>{if(el.isConnected)el.style.borderColor='var(--border2)'},1500);
+    }catch(e){if(el.isConnected)el.style.borderColor='var(--red)';toast('ERRO AO SALVAR PREVISTO: '+(e.message||String(e)),true)}
+  };
   document.querySelectorAll('[data-pe]').forEach(el=>{
-    el.onchange=async()=>{
-      const empId=el.dataset.pe,qty=parseInt(el.value)||0;
-      el.style.borderColor='var(--gold)';
-      try{
-        await api.upsertPrevisto({mes:S.selectedMonth,empreiteiro_id:empId,quantidade:qty});
-        const idx=S.previsto.findIndex(p=>p.empreiteiro_id===empId);
-        if(idx>=0)S.previsto[idx].quantidade=qty;
-        else S.previsto.push({id:'prev'+Date.now()+empId,mes:S.selectedMonth,empreiteiro_id:empId,quantidade:qty});
-        el.style.borderColor='var(--green)';
-        // Atualizar total sem re-render
-        const totalEl=document.getElementById('prevTotal');
-        if(totalEl)totalEl.textContent=S.previsto.reduce((a,p)=>a+(p.quantidade||0),0);
-        setTimeout(()=>{el.style.borderColor='var(--border2)'},1500);
-      }catch(e){el.style.borderColor='var(--red)';toast('ERRO AO SALVAR',true)}
-    };
+    el.oninput=()=>{clearTimeout(_prevTimers[el.dataset.pe]);el.style.borderColor='var(--gold)';_prevTimers[el.dataset.pe]=setTimeout(()=>_savePrev(el),800)};
+    el.onblur=()=>{clearTimeout(_prevTimers[el.dataset.pe]);_savePrev(el)};
   });
 
   document.querySelectorAll('[data-action="exportPdf"]').forEach(el=>{el.onclick=exportPdf});
