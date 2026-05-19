@@ -90,6 +90,8 @@ main{padding:0 0 80px 0}
 .monthly-stats{display:flex;gap:12px;font-size:11px;color:var(--gray)}
 .monthly-stats span{display:flex;align-items:center;gap:3px}
 @media(min-width:768px){.page{max-width:640px;margin:0 auto}}
+.emp-pill{padding:5px 11px;border-radius:16px;border:1px solid var(--border2);background:var(--bg2);color:var(--gray);font-size:10px;font-weight:600;cursor:pointer;letter-spacing:.4px;transition:.15s}
+.emp-pill.active{border-color:var(--gold);color:var(--gold);background:rgba(201,169,110,.12)}
 </style>
 </head>
 <body>
@@ -156,12 +158,14 @@ const api={
 // ============================================================
 // STATE & HELPERS
 // ============================================================
-let S={page:'home',tab:'diario',cadTab:'empreiteiros',biEmpFilter:'all',
+let S={page:'home',tab:'diario',cadTab:'empreiteiros',biEmpSel:[],
   empreiteiros:[],colaboradores:[],chamadas:[],previsto:[],funcoes:[],diarias:[],
   selectedDate:dk(new Date()),selectedMonth:mk(new Date()),
   selEmp:'all',diariaEmp:'all',toast:null,tt:'ok',loading:true,
   fNome:'',fEsp:'',fCnpj:'',fColNome:'',fColCpf:'',fColEmp:'',fColFunc:'',fFuncNome:''};
 
+function fEmp(){return S.biEmpSel.length===0?S.empreiteiros:S.empreiteiros.filter(e=>S.biEmpSel.includes(e.id))}
+function fCol(){return S.biEmpSel.length===0?S.colaboradores:S.colaboradores.filter(c=>S.biEmpSel.includes(c.empreiteiro_id))}
 function dk(d){return`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`}
 function mk(d){return`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`}
 function fd(k){const[y,m,d]=k.split('-');return`${d}/${m}/${y}`}
@@ -278,7 +282,7 @@ function rChamada(){
 function rPainel(){
   return`<div class="page fade-in">
     <div style="display:flex;gap:8px;margin-bottom:10px">${ic('calendar',16,'#c9a96e')}<input type="month" value="${S.selectedMonth}" data-action="setMonth" style="flex:1"></div>
-    <select data-action="setBiEmp" style="margin-bottom:12px"><option value="all">TODOS OS EMPREITEIROS</option>${S.empreiteiros.map(e=>`<option value="${e.id}" ${S.biEmpFilter===e.id?'selected':''}>${e.nome}</option>`).join('')}</select>
+    <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px"><button class="emp-pill ${S.biEmpSel.length===0?'active':''}" data-emp-toggle="all">TODOS</button>${S.empreiteiros.map(e=>`<button class="emp-pill ${S.biEmpSel.includes(e.id)?'active':''}" data-emp-toggle="${e.id}">${e.nome}</button>`).join('')}</div>
     <div class="tabs"><button class="tab-btn ${S.tab==='diario'?'active':''}" data-tab="diario">HISTOGRAMA DIÁRIO</button><button class="tab-btn ${S.tab==='mensal'?'active':''}" data-tab="mensal">RESUMO MENSAL</button></div>
     ${S.tab==='diario'?rDaily():rMonthly()}
     <button class="action-btn" style="margin-top:16px" data-action="exportPdf">${ic('file',18,'#c9a96e')} EXPORTAR ATA MENSAL (PDF)</button>
@@ -286,8 +290,8 @@ function rPainel(){
 
 function rDaily(){
   const[y,m]=S.selectedMonth.split('-').map(Number);const days=dim(S.selectedMonth);
-  const fE=S.biEmpFilter==='all'?S.empreiteiros:S.empreiteiros.filter(e=>e.id===S.biEmpFilter);
-  const fC=S.biEmpFilter==='all'?S.colaboradores:S.colaboradores.filter(c=>c.empreiteiro_id===S.biEmpFilter);
+  const fE=fEmp();
+  const fC=fCol();
 
   // Daily totals for table
   let dailyRows='';
@@ -377,7 +381,7 @@ function rDaily(){
 function rMonthly(){
   const[y,m]=S.selectedMonth.split('-').map(Number);const days=dim(S.selectedMonth);
   const today=dk(new Date());
-  const fE=S.biEmpFilter==='all'?S.empreiteiros:S.empreiteiros.filter(e=>e.id===S.biEmpFilter);
+  const fE=fEmp();
 
   const summary=fE.map(emp=>{
     const cols=S.colaboradores.filter(c=>c.empreiteiro_id===emp.id);
@@ -573,7 +577,7 @@ function exportPdf(){
   doc.setDrawColor(200);doc.line(20,48,190,48);
 
   // Summary table - respects filter
-  const pdfEmps=S.biEmpFilter==='all'?S.empreiteiros:S.empreiteiros.filter(e=>e.id===S.biEmpFilter);
+  const pdfEmps=fEmp();
   let tableData=[];let tE=0,tPv=0,tP=0,tF=0,tM=0;
   pdfEmps.forEach(emp=>{
     const cols=S.colaboradores.filter(c=>c.empreiteiro_id===emp.id);
@@ -598,13 +602,13 @@ function exportPdf(){
   doc.setFontSize(11);doc.setFont('helvetica','bold');doc.text('2. DETALHAMENTO DIÁRIO',20,fy);
   let dailyData=[];
   for(let d=1;d<=days;d++){const dkk=`${y}-${String(m).padStart(2,'0')}-${String(d).padStart(2,'0')}`;const dch=S.chamadas.filter(c=>c.data===dkk);if(!dch.length)continue;
-    let tr=0;const pdfCols=S.biEmpFilter==='all'?S.colaboradores:S.colaboradores.filter(c=>c.empreiteiro_id===S.biEmpFilter);pdfCols.forEach(c=>{const ch=dch.find(x=>x.colaborador_id===c.id);if(ch?.status==='P')tr+=1;else if(ch?.status==='M')tr+=.5});
+    let tr=0;const pdfCols=fCol();pdfCols.forEach(c=>{const ch=dch.find(x=>x.colaborador_id===c.id);if(ch?.status==='P')tr+=1;else if(ch?.status==='M')tr+=.5});
     let tp=0;pdfEmps.forEach(e=>{const p=S.previsto.find(pr=>pr.empreiteiro_id===e.id);tp+=(p?.quantidade||0)});const dv=tr-tp;
     dailyData.push([fd(dkk),dow(dkk),tp,tr,(dv>=0?'+':'')+dv])}
   doc.autoTable({startY:fy+4,head:[['DATA','DIA','PREV.','REAL.','DESVIO']],body:dailyData,theme:'grid',headStyles:{fillColor:[40,40,40],textColor:255,fontSize:8},bodyStyles:{fontSize:8}});
 
   // 3. Ocorrências (faltas e meio período com motivo)
-  const pdfCols2=S.biEmpFilter==='all'?S.colaboradores:S.colaboradores.filter(c=>c.empreiteiro_id===S.biEmpFilter);
+  const pdfCols2=fCol();
   let ocorrData=[];
   S.chamadas.filter(c=>(c.status==='F'||c.status==='M')&&pdfCols2.some(col=>col.id===c.colaborador_id)).sort((a,b)=>a.data.localeCompare(b.data)).forEach(ch=>{
     const col=pdfCols2.find(c=>c.id===ch.colaborador_id);if(!col)return;
@@ -648,8 +652,8 @@ function exportDailyPdf(){
   doc.setDrawColor(200);doc.line(20,48,190,48);
 
   // Totais gerais - respects filter
-  const dailyPdfEmps=S.biEmpFilter==='all'?S.empreiteiros:S.empreiteiros.filter(e=>e.id===S.biEmpFilter);
-  const dailyPdfCols=S.biEmpFilter==='all'?S.colaboradores:S.colaboradores.filter(c=>c.empreiteiro_id===S.biEmpFilter);
+  const dailyPdfEmps=fEmp();
+  const dailyPdfCols=fCol();
   let totalP=0,totalF=0,totalM=0;
   dailyPdfCols.forEach(c=>{const ch=dayChs.find(x=>x.colaborador_id===c.id);if(ch?.status==='P')totalP++;else if(ch?.status==='F')totalF++;else if(ch?.status==='M')totalM++});
   const totalEf=totalP+totalM*0.5;
@@ -718,7 +722,7 @@ function bindEvents(){
   document.querySelectorAll('[data-action="setDate"]').forEach(el=>{el.onchange=async()=>{S.selectedDate=el.value;const nm=el.value.slice(0,7);if(nm!==S.selectedMonth){S.selectedMonth=nm;await loadMonth()}render()}});
   document.querySelectorAll('[data-action="setMonth"]').forEach(el=>{el.onchange=async()=>{S.selectedMonth=el.value;await loadMonth();render()}});
   document.querySelectorAll('[data-action="setEmp"]').forEach(el=>{el.onchange=()=>{S.selEmp=el.value;render()}});
-  document.querySelectorAll('[data-action="setBiEmp"]').forEach(el=>{el.onchange=()=>{S.biEmpFilter=el.value;render()}});
+  document.querySelectorAll('[data-emp-toggle]').forEach(el=>{el.onclick=()=>{const v=el.dataset.empToggle;if(v==='all'){S.biEmpSel=[];}else{const i=S.biEmpSel.indexOf(v);if(i>=0)S.biEmpSel.splice(i,1);else S.biEmpSel.push(v);}render()}});
 
   // Chamada — adicionar colaborador ao dia (opt-in)
   document.querySelectorAll('[data-action="addToDay"]').forEach(el=>{el.onclick=async()=>{
