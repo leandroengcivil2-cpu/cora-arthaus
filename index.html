@@ -132,7 +132,7 @@ const api={
     const ex=await this.req(`chamadas?data=eq.${c.data}&colaborador_id=eq.${c.colaborador_id}`);
     const patch={status:c.status};if(c.motivo!==undefined)patch.motivo=c.motivo;
     if(ex?.length)return this.req(`chamadas?data=eq.${c.data}&colaborador_id=eq.${c.colaborador_id}`,'PATCH',patch);
-    return this.req('chamadas','POST',{id:'ch'+Date.now()+c.colaborador_id.slice(-4),...c,motivo:c.motivo||''});
+    return this.req('chamadas','POST',{data:c.data,colaborador_id:c.colaborador_id,status:c.status,motivo:c.motivo||''});
   },
   delChamada(data,cid){return this.req(`chamadas?data=eq.${data}&colaborador_id=eq.${cid}`,'DELETE')},
   getPrevisto(mes){return this.req('previsto?mes=eq.'+mes)},
@@ -148,7 +148,7 @@ const api={
   async upsertDiaria(d){
     const ex=await this.req(`diarias?data=eq.${d.data}&colaborador_id=eq.${d.colaborador_id}`);
     if(ex?.length)return this.req(`diarias?data=eq.${d.data}&colaborador_id=eq.${d.colaborador_id}`,'PATCH',{descricao:d.descricao});
-    return this.req('diarias','POST',d);
+    return this.req('diarias','POST',{data:d.data,colaborador_id:d.colaborador_id,descricao:d.descricao||''});
   },
   delDiaria(data,cid){return this.req(`diarias?data=eq.${data}&colaborador_id=eq.${cid}`,'DELETE')},
 };
@@ -842,7 +842,7 @@ function bindEvents(){
   document.querySelectorAll('[data-action="addDiaria"]').forEach(el=>{el.onclick=async()=>{
     const sel=document.getElementById('selDiariaCol');if(!sel||!sel.value){toast('SELECIONE UM COLABORADOR',true);return}
     const cid=sel.value,d=S.selectedDate;
-    const nd={id:'dia'+Date.now()+cid,data:d,colaborador_id:cid,descricao:''};
+    const nd={data:d,colaborador_id:cid,descricao:''};
     try{await api.upsertDiaria(nd);S.diarias.push(nd);render();toast('COLABORADOR ADICIONADO')}catch(e){toast('ERRO',true)}
   }});
   document.querySelectorAll('[data-diaria-rm]').forEach(el=>{el.onclick=async()=>{
