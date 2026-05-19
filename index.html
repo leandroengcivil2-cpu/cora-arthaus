@@ -257,7 +257,7 @@ function rChamada(){
           <button class="status-btn" style="background:${s==='P'?'var(--green)':'var(--bg4)'};color:${s==='P'?'#000':'var(--gray2)'}" data-ch="${c.id}" data-st="P">P</button>
           <button class="status-btn" style="background:${s==='M'?'var(--yellow)':'var(--bg4)'};color:${s==='M'?'#000':'var(--gray2)'}" data-ch="${c.id}" data-st="M">½</button>
           <button class="status-btn" style="background:${s==='F'?'var(--red)':'var(--bg4)'};color:${s==='F'?'#000':'var(--gray2)'}" data-ch="${c.id}" data-st="F">F</button>
-          <button class="del-btn" data-ch-rm="${c.id}" style="margin-left:4px;padding:4px 8px;font-size:14px;opacity:.6">✕</button>
+          <button class="del-btn" data-ch-rm="${c.id}" style="margin-left:4px;padding:4px 8px;font-size:14px;opacity:.7;color:#fff">✕</button>
         </div>
       </div>
       ${showMotivo?`<input type="text" data-motivo="${c.id}" placeholder="MOTIVO DA ${s==='F'?'FALTA':'½ PERÍODO'}..." value="${mot}" style="font-size:11px;padding:7px 10px;background:var(--bg4);border:1px solid var(--border2);border-radius:6px;color:var(--white);text-transform:uppercase">`:''}
