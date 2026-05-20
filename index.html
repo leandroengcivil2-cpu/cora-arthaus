@@ -183,7 +183,30 @@ function ic(n,s=20,c='currentColor'){const p={home:'<path d="M3 9l9-7 9 7v11a2 2
 // ============================================================
 // DATA
 // ============================================================
-async function loadData(){try{const[e,c,f]=await Promise.all([api.getEmpreiteiros(),api.getColaboradores(),api.getFuncoes()]);S.empreiteiros=e||[];S.colaboradores=c||[];S.funcoes=f||[];S.fColEmp=S.empreiteiros[0]?.id||'';S.fColFunc=S.funcoes[0]?.nome||'';await loadMonth();S.loading=false;render()}catch(e){console.error(e);S.loading=false;toast('Erro de conexão',true)}}
+async function autoPopulateDay(date){
+  if(date>dk(new Date()))return;
+  if(S.chamadas.some(c=>c.data===date))return;
+  let prevChs=[];
+  const prevDates=[...new Set(S.chamadas.map(c=>c.data))].filter(d=>d<date).sort().reverse();
+  if(prevDates.length){
+    prevChs=S.chamadas.filter(c=>c.data===prevDates[0]);
+  }else{
+    try{
+      const[y,m]=date.split('-').map(Number);
+      const prevMonth=`${m===1?y-1:y}-${String(m===1?12:m-1).padStart(2,'0')}`;
+      const prev=await api.getChamadas(prevMonth);
+      if(prev?.length){const pd=[...new Set(prev.map(c=>c.data))].sort().reverse();prevChs=prev.filter(c=>c.data===pd[0]);}
+    }catch(e){}
+  }
+  if(!prevChs.length)return;
+  for(const ch of prevChs){
+    try{
+      await api.upsertChamada({data:date,colaborador_id:ch.colaborador_id,status:'P',motivo:''});
+      S.chamadas.push({data:date,colaborador_id:ch.colaborador_id,status:'P',motivo:''});
+    }catch(e){console.error('autoPopulate:',e)}
+  }
+}
+async function loadData(){try{const[e,c,f]=await Promise.all([api.getEmpreiteiros(),api.getColaboradores(),api.getFuncoes()]);S.empreiteiros=e||[];S.colaboradores=c||[];S.funcoes=f||[];S.fColEmp=S.empreiteiros[0]?.id||'';S.fColFunc=S.funcoes[0]?.nome||'';await loadMonth();await autoPopulateDay(S.selectedDate);S.loading=false;render()}catch(e){console.error(e);S.loading=false;toast('Erro de conexão',true)}}
 async function loadMonth(){try{const[c,p,di]=await Promise.all([api.getChamadas(S.selectedMonth),api.getPrevisto(S.selectedMonth),api.getDiarias(S.selectedMonth)]);S.chamadas=c||[];S.previsto=p||[];S.diarias=di||[]}catch(e){console.error(e)}}
 
 // ============================================================
@@ -719,7 +742,7 @@ function bindEvents(){
   document.querySelectorAll('[data-nav]').forEach(el=>{el.onclick=()=>{S.page=el.dataset.nav;render()}});
   document.querySelectorAll('[data-tab]').forEach(el=>{el.onclick=()=>{S.tab=el.dataset.tab;render()}});
   document.querySelectorAll('[data-ct]').forEach(el=>{el.onclick=()=>{S.cadTab=el.dataset.ct;render()}});
-  document.querySelectorAll('[data-action="setDate"]').forEach(el=>{el.onchange=async()=>{S.selectedDate=el.value;const nm=el.value.slice(0,7);if(nm!==S.selectedMonth){S.selectedMonth=nm;await loadMonth()}render()}});
+  document.querySelectorAll('[data-action="setDate"]').forEach(el=>{el.onchange=async()=>{S.selectedDate=el.value;const nm=el.value.slice(0,7);if(nm!==S.selectedMonth){S.selectedMonth=nm;await loadMonth()}await autoPopulateDay(S.selectedDate);render()}});
   document.querySelectorAll('[data-action="setMonth"]').forEach(el=>{el.onchange=async()=>{S.selectedMonth=el.value;await loadMonth();render()}});
   document.querySelectorAll('[data-action="setEmp"]').forEach(el=>{el.onchange=()=>{S.selEmp=el.value;render()}});
   document.querySelectorAll('[data-emp-toggle]').forEach(el=>{el.onclick=()=>{const v=el.dataset.empToggle;if(v==='all'){S.biEmpSel=[];}else{const i=S.biEmpSel.indexOf(v);if(i>=0)S.biEmpSel.splice(i,1);else S.biEmpSel.push(v);}render()}});
