@@ -201,8 +201,8 @@ async function autoPopulateDay(date){
   if(!prevChs.length)return;
   for(const ch of prevChs){
     try{
-      await api.upsertChamada({data:date,colaborador_id:ch.colaborador_id,status:'P',motivo:''});
-      S.chamadas.push({data:date,colaborador_id:ch.colaborador_id,status:'P',motivo:''});
+      await api.upsertChamada({data:date,colaborador_id:ch.colaborador_id,status:'',motivo:''});
+      S.chamadas.push({data:date,colaborador_id:ch.colaborador_id,status:'',motivo:''});
     }catch(e){console.error('autoPopulate:',e)}
   }
 }
@@ -271,7 +271,7 @@ function rChamada(){
   addedCols.forEach(c=>{const s=chStatus(c.id,d);if(s==='P')P++;else if(s==='F')F++;else if(s==='M')M++});
 
   const list=addedCols.length?addedCols.map(c=>{
-    const s=chStatus(c.id,d)||'P',mot=chMotivo(c.id,d),emp=S.empreiteiros.find(e=>e.id===c.empreiteiro_id);
+    const s=chStatus(c.id,d)||'',mot=chMotivo(c.id,d),emp=S.empreiteiros.find(e=>e.id===c.empreiteiro_id);
     const showMotivo=(s==='F'||s==='M');
     return`<div class="list-item" style="${showMotivo?'flex-direction:column;align-items:stretch;gap:6px':''}">
       <div style="display:flex;align-items:center;justify-content:space-between;width:100%">
