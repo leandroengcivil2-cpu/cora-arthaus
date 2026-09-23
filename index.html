@@ -150,7 +150,7 @@ const api={
   async upsertDiaria(d){
     const ex=await this.req(`diarias?data=eq.${d.data}&colaborador_id=eq.${d.colaborador_id}`);
     if(ex?.length)return this.req(`diarias?data=eq.${d.data}&colaborador_id=eq.${d.colaborador_id}`,'PATCH',{descricao:d.descricao});
-    return this.req('diarias','POST',{data:d.data,colaborador_id:d.colaborador_id,descricao:d.descricao||''});
+    return this.req('diarias','POST',{id:'dia'+Date.now()+String(d.colaborador_id).slice(-4),data:d.data,colaborador_id:d.colaborador_id,descricao:d.descricao||''});
   },
   delDiaria(data,cid){return this.req(`diarias?data=eq.${data}&colaborador_id=eq.${cid}`,'DELETE')},
 };
