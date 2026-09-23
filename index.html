@@ -870,7 +870,7 @@ function bindEvents(){
     const sel=document.getElementById('selDiariaCol');if(!sel||!sel.value){toast('SELECIONE UM COLABORADOR',true);return}
     const cid=sel.value,d=S.selectedDate;
     const nd={data:d,colaborador_id:cid,descricao:''};
-    try{await api.upsertDiaria(nd);S.diarias.push(nd);render();toast('COLABORADOR ADICIONADO')}catch(e){toast('ERRO',true)}
+    try{await api.upsertDiaria(nd);S.diarias.push(nd);render();toast('COLABORADOR ADICIONADO')}catch(e){toast('ERRO AO ADICIONAR: '+(e.message||String(e)),true)}
   }});
   document.querySelectorAll('[data-diaria-rm]').forEach(el=>{el.onclick=async()=>{
     const cid=el.dataset.diariaRm,d=S.selectedDate;
