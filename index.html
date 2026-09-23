@@ -498,7 +498,8 @@ function rDiarias(){
     ${addSelect}
     <div style="display:flex;gap:8px;margin-bottom:14px"><div class="mini-stat"><div style="font-size:18px;font-weight:700;color:var(--gold)">${addedCols.length}</div><div style="font-size:9px;color:var(--gray)">DIÁRIAS HOJE</div></div></div>
     ${listHtml}
-    <button class="action-btn" style="margin-top:16px" data-action="exportDiariasPdf">${ic('file',18,'#c9a96e')} EXPORTAR MEDIÇÃO MENSAL (PDF)</button>
+    <button class="action-btn" style="margin-top:16px" data-action="exportDailyDiariasPdf">${ic('file',18,'#c9a96e')} FICHA DO DIA (PDF + ASSINATURA)</button>
+    <button class="action-btn" style="margin-top:10px" data-action="exportDiariasPdf">${ic('file',18,'#c9a96e')} EXPORTAR MEDIÇÃO MENSAL (PDF)</button>
   </div>`}
 
 function exportDiariasPdf(){
@@ -548,6 +549,90 @@ function exportDiariasPdf(){
 
   doc.save(`MEDICAO_DIARIAS_${mn}_${y}.pdf`);
   toast('PDF MEDIÇÃO EXPORTADO');
+}
+
+// Modal de captura de assinatura digital (desenho com dedo/mouse)
+function openSignatureModal(title,onConfirm){
+  const ov=document.createElement('div');
+  ov.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.9);z-index:9999;display:flex;flex-direction:column;padding:16px;overflow-y:auto';
+  ov.innerHTML=`<div style="max-width:640px;margin:auto;width:100%">
+    <h3 style="font-family:var(--font-display);font-size:16px;color:var(--gold);margin-bottom:4px">${title}</h3>
+    <p style="font-size:11px;color:var(--gray);margin-bottom:16px">Assine no quadro com o dedo ou mouse. Deixe em branco se não for assinar.</p>
+    <div style="margin-bottom:16px">
+      <div style="font-size:11px;color:var(--gray);margin-bottom:5px;font-weight:600">ENG. / RESPONSÁVEL DA OBRA</div>
+      <canvas class="sigpad" data-sig="eng" width="600" height="160" style="width:100%;height:160px;background:#fff;border-radius:8px;touch-action:none;display:block"></canvas>
+      <button class="sm-btn" data-sigclear="eng" style="margin-top:6px">LIMPAR</button>
+    </div>
+    <div style="margin-bottom:16px">
+      <div style="font-size:11px;color:var(--gray);margin-bottom:5px;font-weight:600">ENCARREGADO / EMPREITEIRO</div>
+      <canvas class="sigpad" data-sig="emp" width="600" height="160" style="width:100%;height:160px;background:#fff;border-radius:8px;touch-action:none;display:block"></canvas>
+      <button class="sm-btn" data-sigclear="emp" style="margin-top:6px">LIMPAR</button>
+    </div>
+    <div style="display:flex;gap:8px;margin-top:8px;padding-bottom:20px">
+      <button class="sm-btn" id="sigCancel" style="flex:1">CANCELAR</button>
+      <button class="add-btn" id="sigConfirm" style="flex:2;width:auto">GERAR PDF</button>
+    </div></div>`;
+  document.body.appendChild(ov);
+  const pads={};
+  ov.querySelectorAll('.sigpad').forEach(cv=>{
+    const ctx=cv.getContext('2d');ctx.strokeStyle='#111';ctx.lineWidth=2.5;ctx.lineJoin='round';ctx.lineCap='round';
+    let drawing=false,used=false;
+    const pos=e=>{const r=cv.getBoundingClientRect();return{x:(e.clientX-r.left)*(cv.width/r.width),y:(e.clientY-r.top)*(cv.height/r.height)}};
+    cv.addEventListener('pointerdown',e=>{e.preventDefault();drawing=true;used=true;const p=pos(e);ctx.beginPath();ctx.moveTo(p.x,p.y)});
+    cv.addEventListener('pointermove',e=>{if(!drawing)return;e.preventDefault();const p=pos(e);ctx.lineTo(p.x,p.y);ctx.stroke()});
+    cv.addEventListener('pointerup',()=>drawing=false);cv.addEventListener('pointerleave',()=>drawing=false);
+    pads[cv.dataset.sig]={cv,used:()=>used,clear:()=>{ctx.clearRect(0,0,cv.width,cv.height);used=false}};
+  });
+  ov.querySelectorAll('[data-sigclear]').forEach(b=>b.onclick=()=>pads[b.dataset.sigclear].clear());
+  ov.querySelector('#sigCancel').onclick=()=>document.body.removeChild(ov);
+  ov.querySelector('#sigConfirm').onclick=()=>{
+    const eng=pads.eng.used()?pads.eng.cv.toDataURL('image/png'):null;
+    const emp=pads.emp.used()?pads.emp.cv.toDataURL('image/png'):null;
+    document.body.removeChild(ov);onConfirm(eng,emp);
+  };
+}
+
+// Ficha diária de diárias com assinatura digital
+function exportDailyDiariasPdf(){
+  const d=S.selectedDate;
+  const dayDiarias=S.diarias.filter(x=>x.data===d);
+  if(!dayDiarias.length){toast('SEM DIÁRIAS NESTE DIA',true);return}
+  openSignatureModal(`ASSINATURAS — DIÁRIA ${fd(d)}`,(sigEng,sigEmp)=>_buildDailyDiariasPdf(d,sigEng,sigEmp));
+}
+function _buildDailyDiariasPdf(d,sigEng,sigEmp){
+  const{jsPDF}=window.jspdf;const doc=new jsPDF();
+  const dayDiarias=S.diarias.filter(x=>x.data===d);
+  const fE=S.diariaEmp==='all'?S.empreiteiros:S.empreiteiros.filter(e=>e.id===S.diariaEmp);
+  doc.setFontSize(16);doc.setFont('helvetica','bold');
+  doc.text('FICHA DE DIÁRIA — RELATÓRIO DIÁRIO',105,20,{align:'center'});
+  doc.setFontSize(10);doc.setFont('helvetica','normal');
+  doc.text('OBRA: CORÁ ARTHAUS — PENHA/SC',20,32);
+  doc.text(`DATA: ${fd(d)} — ${dow(d)}`,20,38);
+  doc.text(`EMISSÃO: ${fd(dk(new Date()))}`,20,44);
+  doc.setDrawColor(200);doc.line(20,48,190,48);
+  let tableData=[];
+  fE.forEach(emp=>{
+    const empCols=S.colaboradores.filter(c=>c.empreiteiro_id===emp.id);
+    const rows=empCols.filter(c=>dayDiarias.some(x=>x.colaborador_id===c.id));
+    if(!rows.length)return;
+    tableData.push([{content:emp.nome,colSpan:3,styles:{fontStyle:'bold',fillColor:[40,40,40],textColor:[200,170,110],fontSize:9}}]);
+    rows.forEach(c=>{const di=dayDiarias.find(x=>x.colaborador_id===c.id);tableData.push([c.nome,c.funcao,di?.descricao||'—'])});
+  });
+  if(!tableData.length){toast('SEM DIÁRIAS NO FILTRO',true);return}
+  doc.autoTable({startY:54,head:[['COLABORADOR','FUNÇÃO','SERVIÇO EXECUTADO']],body:tableData,
+    theme:'grid',headStyles:{fillColor:[30,30,30],textColor:255,fontSize:8},bodyStyles:{fontSize:8},
+    columnStyles:{0:{cellWidth:55},1:{cellWidth:40}}});
+  const fy=doc.lastAutoTable.finalY+8;
+  doc.setFontSize(10);doc.setFont('helvetica','bold');
+  doc.text(`TOTAL DE DIÁRIAS NO DIA: ${dayDiarias.length}`,20,fy);
+  let sy=fy+18;if(sy>250){doc.addPage();sy=30}
+  doc.setFont('helvetica','normal');doc.setFontSize(9);
+  if(sigEng)doc.addImage(sigEng,'PNG',20,sy,70,26);
+  doc.line(20,sy+28,100,sy+28);doc.text('ENG. / RESPONSÁVEL DA OBRA',20,sy+33);
+  if(sigEmp)doc.addImage(sigEmp,'PNG',110,sy,70,26);
+  doc.line(110,sy+28,190,sy+28);doc.text('ENCARREGADO / EMPREITEIRO',110,sy+33);
+  doc.save(`FICHA_DIARIA_${d}.pdf`);
+  toast('FICHA DIÁRIA EXPORTADA');
 }
 
 // ============================================================
@@ -856,6 +941,7 @@ function bindEvents(){
   document.querySelectorAll('[data-action="exportPdf"]').forEach(el=>{el.onclick=exportPdf});
   document.querySelectorAll('[data-action="exportDailyPdf"]').forEach(el=>{el.onclick=exportDailyPdf});
   document.querySelectorAll('[data-action="exportDiariasPdf"]').forEach(el=>{el.onclick=exportDiariasPdf});
+  document.querySelectorAll('[data-action="exportDailyDiariasPdf"]').forEach(el=>{el.onclick=exportDailyDiariasPdf});
   document.querySelectorAll('[data-action="testDb"]').forEach(el=>{el.onclick=async()=>{
     const res=document.getElementById('dbTestResult');if(res)res.textContent='TESTANDO...';
     const r=await api.testConnection();
