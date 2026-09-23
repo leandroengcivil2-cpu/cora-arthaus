@@ -32,16 +32,18 @@ Sistema web single-page de Controle de Histograma da obra **Corá Arthaus** (Pen
 
 ## 3. Estrutura do banco
 
-Todas as tabelas usam `id TEXT` como chave primária, gerado no client antes do POST.
+ATENÇÃO: o tipo da coluna `id` NÃO é uniforme entre as tabelas (verificado em produção):
 
-- `empreiteiros`: id, nome, especialidade, cnpj
-- `colaboradores`: id, nome, empreiteiro_id, funcao, cpf
-- `chamadas`: id, data, colaborador_id, status (P/F/M), motivo — UNIQUE(data, colaborador_id)
-- `previsto`: id, mes (YYYY-MM), empreiteiro_id, quantidade
-- `funcoes`: id, nome
-- `diarias`: id, data, colaborador_id, descricao — UNIQUE(data, colaborador_id)
+- `empreiteiros`: id **TEXT** (gerar no client: 'emp'+Date.now()), nome, especialidade, cnpj
+- `colaboradores`: id **TEXT** (gerar no client: 'col'+Date.now()), nome, empreiteiro_id, funcao, cpf
+- `funcoes`: id **TEXT** (gerar no client: 'func'+Date.now()), nome
+- `diarias`: id **TEXT** (gerar no client: 'dia'+Date.now()+...), data, colaborador_id, descricao — UNIQUE(data, colaborador_id)
+- `chamadas`: id **INTEGER serial** (NÃO enviar id no POST — banco gera), data, colaborador_id, status (P/F/M), motivo — UNIQUE(data, colaborador_id)
+- `previsto`: id **INTEGER serial** (NÃO enviar id no POST — banco gera), mes (YYYY-MM), empreiteiro_id, quantidade — UNIQUE(mes, empreiteiro_id)
 
-Status na tabela chamadas: **P** (presente), **F** (falta), **M** (meio expediente).
+Regra prática: tabelas com id TEXT exigem id gerado no client; tabelas com id INTEGER serial quebram (erro 22P02) se receberem id string e quebram (erro 23502 not-null) apenas se a coluna TEXT não receber id. Sempre conferir o tipo antes de mexer no POST.
+
+Status na tabela chamadas: **P** (presente), **F** (falta), **M** (meio expediente). Na auto-população da chamada o status vai vazio (`''`) — o usuário marca manualmente.
 
 ---
 
@@ -103,6 +105,7 @@ Todos respeitam o filtro de empreiteiro do BI e fecham com bloco de assinaturas.
 - **ATA Mensal**: resumo por empreiteiro + detalhamento diário + ocorrências com motivo
 - **Efetivo Diário**: tabela com nome, função, CPF, status, motivo + resumo por função
 - **Medição de Diárias**: por empreiteiro, com datas, descrição do serviço e totais
+- **Ficha Diária de Diárias**: relatório do dia com serviço executado + captura de assinatura digital (canvas desenhado com dedo/mouse, embutida no PDF via addImage). Modal criado fora do ciclo de render() para o canvas não ser apagado.
 
 ---
 
